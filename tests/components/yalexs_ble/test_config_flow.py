@@ -45,6 +45,8 @@ def _get_mock_push_lock():
     mock_push_lock.lock_info = LockInfo("Front Door", "M1XXX012LU", "1.0.0", "1.0.0")
     mock_push_lock.device_info = None
     mock_push_lock.address = YALE_ACCESS_LOCK_DISCOVERY_INFO.address
+    mock_push_lock.get_privacy_mode = AsyncMock(return_value=False)
+    mock_push_lock.set_privacy_mode = AsyncMock()
     return mock_push_lock
 
 

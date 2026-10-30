@@ -6,6 +6,15 @@
           "locked": "mdi:shield-lock"
         }
       }
+    },
+    "switch": {
+      "privacy_mode": {
+        "default": "mdi:lock-off",
+        "state": {
+          "off": "mdi:lock-open-outline",
+          "on": "mdi:shield-lock-outline"
+        }
+      }
     }
   }
 }

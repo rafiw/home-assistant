@@ -6,6 +6,7 @@ from aiohttp import ClientResponseError
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 from syrupy.assertion import SnapshotAssertion
+from yalexs.lock import LockDetail
 from yalexs.manager.activity import INITIAL_LOCK_RESYNC_TIME
 
 from homeassistant.components.lock import DOMAIN as LOCK_DOMAIN, LockState
@@ -24,6 +25,7 @@ from homeassistant.util import dt as dt_util
 
 from .mocks import (
     _create_yale_with_devices,
+    _load_json_fixture,
     _mock_activities_from_fixture,
     _mock_doorsense_enabled_yale_lock_detail,
     _mock_lock_from_fixture,
@@ -528,3 +530,63 @@ async def test_open_throws_hass_service_not_supported_error(
         ),
     ):
         await hass.services.async_call(LOCK_DOMAIN, SERVICE_OPEN, data, blocking=True)
+
+
+async def test_lock_privacy_mode_initial_state(hass: HomeAssistant) -> None:
+    """Test lock initialized in privacy mode starts as unavailable."""
+    lock_dict = await _load_json_fixture(hass, "get_lock.online_with_doorsense.json")
+    lock_dict["LockStatus"]["status"] = "shabbatmode"
+    lock_one = LockDetail(lock_dict)
+    config_entry, _ = await _create_yale_with_devices(hass, [lock_one])
+
+    state = hass.states.get("lock.online_with_doorsense_name") or hass.states.get(
+        "lock.online_with_doorsense_name_online_with_doorsense_name"
+    )
+    assert state is not None
+    assert state.state == STATE_UNAVAILABLE
+
+    await hass.config_entries.async_unload(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_lock_privacy_mode_push_update(hass: HomeAssistant) -> None:
+    """Test lock becomes unavailable when privacy mode is enabled via push update."""
+    lock_one = await _mock_doorsense_enabled_yale_lock_detail(hass)
+    activities = await _mock_activities_from_fixture(hass, "get_activity.lock.json")
+    config_entry, socketio = await _create_yale_with_devices(
+        hass, [lock_one], activities=activities
+    )
+    socketio.connected = True
+    entity_id = (
+        "lock.online_with_doorsense_name"
+        if hass.states.get("lock.online_with_doorsense_name")
+        else "lock.online_with_doorsense_name_online_with_doorsense_name"
+    )
+    assert hass.states.get(entity_id).state == LockState.LOCKED
+
+    listener = list(socketio._listeners)[0]
+
+    # Enter privacy mode via push
+    listener(
+        lock_one.device_id,
+        dt_util.utcnow(),
+        {"status": "shabbatmode"},
+    )
+    await hass.async_block_till_done()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == STATE_UNAVAILABLE
+
+    # Exit privacy mode via push
+    listener(
+        lock_one.device_id,
+        dt_util.utcnow(),
+        {"status": "locked"},
+    )
+    await hass.async_block_till_done()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == LockState.LOCKED
+
+    await hass.config_entries.async_unload(config_entry.entry_id)
+    await hass.async_block_till_done()

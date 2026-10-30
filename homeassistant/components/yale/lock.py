@@ -42,6 +42,7 @@ class YaleLock(YaleEntity, RestoreEntity, LockEntity):
 
     _attr_name = None
     _lock_status: LockStatus | None = None
+    _privacy_mode: bool | None = None
 
     def __init__(self, data: YaleData, device: Lock) -> None:
         """Initialize the lock."""
@@ -91,10 +92,17 @@ class YaleLock(YaleEntity, RestoreEntity, LockEntity):
             self._data.async_signal_device_id_update(self._device_id)
 
     def _update_lock_status_from_detail(self) -> bool:
-        self._attr_available = self._detail.bridge_is_online
+        self._attr_available = (
+            self._detail.bridge_is_online and not self._detail.privacy_mode
+        )
 
-        if self._lock_status != self._detail.lock_status:
+        status_changed = (
+            self._lock_status != self._detail.lock_status
+            or self._privacy_mode != self._detail.privacy_mode
+        )
+        if status_changed:
             self._lock_status = self._detail.lock_status
+            self._privacy_mode = self._detail.privacy_mode
             return True
         return False
 

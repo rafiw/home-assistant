@@ -29,6 +29,12 @@ class YaleXSBLEBaseLock(YALEXSBLEEntity, LockEntity):
 
     _secure_mode: bool = False
 
+    @property
+    @override
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return super().available and not self._data.privacy_mode
+
     @callback
     @override
     def _async_update_state(
@@ -40,7 +46,9 @@ class YaleXSBLEBaseLock(YALEXSBLEEntity, LockEntity):
         self._attr_is_unlocking = False
         self._attr_is_jammed = False
         lock_state = new_state.lock
-        if lock_state is LockStatus.LOCKED:
+        if lock_state is LockStatus.PRIVACY_MODE:
+            self._data.privacy_mode = True
+        elif lock_state is LockStatus.LOCKED:
             self._attr_is_locked = not self._secure_mode
         elif lock_state is LockStatus.LOCKING:
             self._attr_is_locking = True
@@ -57,6 +65,14 @@ class YaleXSBLEBaseLock(YALEXSBLEEntity, LockEntity):
         elif lock_state is LockStatus.UNKNOWN:
             self._attr_is_locked = None
         super()._async_update_state(new_state, lock_info, connection_info)
+
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks."""
+        self.async_on_remove(
+            self._data.async_register_privacy_mode_callback(self.async_write_ha_state)
+        )
+        return await super().async_added_to_hass()
 
     @override
     async def async_unlock(self, **kwargs: Any) -> None:

@@ -50,6 +50,11 @@
       "battery_voltage": {
         "name": "Battery voltage"
       }
+    },
+    "switch": {
+      "privacy_mode": {
+        "name": "Privacy mode"
+      }
     }
   },
   "exceptions": {
